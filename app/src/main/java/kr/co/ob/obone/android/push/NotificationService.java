@@ -1,16 +1,14 @@
-package kr.co.ob.obone.android;
+package kr.co.ob.obone.android.push;
 
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
-import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 
@@ -22,10 +20,10 @@ import com.google.android.gms.tasks.Task;
 import com.google.firebase.messaging.FirebaseMessaging;
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
-import com.google.zxing.common.StringUtils;
-import com.nexacro.util.Log;
 
-import org.json.JSONObject;
+import kr.co.ob.obone.android.MainActivity;
+import kr.co.ob.obone.android.nexacro.NexacroActivityExt;
+import kr.co.ob.obone.android.R;
 
 public class NotificationService extends FirebaseMessagingService {
 

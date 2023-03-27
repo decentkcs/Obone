@@ -1,4 +1,4 @@
-package kr.co.ob.obone.android;
+package kr.co.ob.obone.android.download;
 
 import android.app.Activity;
 import android.app.ProgressDialog;

@@ -1,4 +1,4 @@
-package kr.co.ob.obone.android;
+package kr.co.ob.obone.android.gps;
 
 import android.Manifest;
 import android.app.Notification;
@@ -29,6 +29,9 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import java.util.List;
 import java.util.Timer;
 import java.util.TimerTask;
+
+import kr.co.ob.obone.android.MainActivity;
+import kr.co.ob.obone.android.R;
 
 /**
  * Created by deepshikha on 24/11/16.
@@ -168,7 +171,6 @@ public class GPSService extends Service implements LocationListener {
         if (!isGPSEnable && !isNetworkEnable) {
 
         } else {
-
             if (isNetworkEnable) {
                 location = null;
                 if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -188,8 +190,6 @@ public class GPSService extends Service implements LocationListener {
                 }
             }
 
-
-
             if (isGPSEnable) {
 
                 if (ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED && ActivityCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
@@ -205,37 +205,17 @@ public class GPSService extends Service implements LocationListener {
                         latitude = location2.getLatitude();
                         longitude = location2.getLongitude();
                         location = location2;
-
                     }
                 }
             }
-
-            Log.e("latitude", latitude + "");
-            Log.e("longitude", longitude + "");
-
-
             if(!isSingle) {
 
                 if(latitude == 0 || longitude == 0) {
-
-//                    Toast.makeText(mContext, "", Toast.LENGTH_SHORT).show();
-
                 }
                 else {
                     sendMessage(latitude, longitude);
                 }
-
-
-
             }
-
-
-//            if(location == null) {
-//
-//                location = NexacroActivityExt.sLocation;
-//                NexacroActivityExt.sLocation = null;
-//            }
-
             return location;
         }
         return null;
@@ -254,8 +234,6 @@ public class GPSService extends Service implements LocationListener {
 
         }
     }
-
-
 
     private void sendMessage(double latitude, double longitude){
         Log.d("messageService", "Broadcasting message");

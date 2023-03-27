@@ -1,4 +1,4 @@
-package kr.co.ob.obone.android;
+package kr.co.ob.obone.android.gps;
 
 import android.annotation.SuppressLint;
 import android.app.Notification;
@@ -46,12 +46,15 @@ import java.util.concurrent.TimeUnit;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import kr.co.ob.obone.android.MainActivity;
+import kr.co.ob.obone.android.R;
+import kr.co.ob.obone.android.log.TraceLog;
+import kr.co.ob.obone.android.common.CommonConstants;
+
 
 //public class BackgroundLocationUpdateService  {
 public class BackgroundLocationUpdateService extends Service implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, LocationListener {
 
-    private final String TAG = "BackgroundLocationUpdateService";
-    private final String TAG_LOCATION = "TAG_LOCATION";
     private Context context;
     private boolean stopService = false;
 
@@ -65,7 +68,6 @@ public class BackgroundLocationUpdateService extends Service implements GoogleAp
     private LocationRequest mLocationRequest;
     private Location mCurrentLocation;
     /* For Google Fused API */
-
 
     @Override
     public void onCreate() {
@@ -106,11 +108,11 @@ public class BackgroundLocationUpdateService extends Service implements GoogleAp
 
     @Override
     public void onDestroy() {
-        Log.e(TAG, "Service Stopped");
+        Log.e(CommonConstants.TAG, "Service Stopped");
         stopService = true;
         if (mFusedLocationClient != null) {
             mFusedLocationClient.removeLocationUpdates(mLocationCallback);
-            Log.e(TAG_LOCATION, "Location Update Callback Removed");
+            Log.e(CommonConstants.TAG_LOCATION, "Location Update Callback Removed");
         }
         super.onDestroy();
     }
@@ -158,12 +160,12 @@ public class BackgroundLocationUpdateService extends Service implements GoogleAp
 
     @Override
     public void onLocationChanged(Location location) {
-        Log.e(TAG_LOCATION, "Location Changed Latitude : " + location.getLatitude() + "\tLongitude : " + location.getLongitude());
+        Log.e(CommonConstants.TAG_LOCATION, "Location Changed Latitude : " + location.getLatitude() + "\tLongitude : " + location.getLongitude());
 
         latitude = String.valueOf(location.getLatitude());
         longitude = String.valueOf(location.getLongitude());
 
-        TraceLog.WW(TAG_LOCATION, "Latitude : " + location.getLatitude() + "\tLongitude : " + location.getLongitude());
+        TraceLog.WW(CommonConstants.TAG_LOCATION, "Latitude : " + location.getLatitude() + "\tLongitude : " + location.getLongitude());
         if (latitude.equalsIgnoreCase("0.0") && longitude.equalsIgnoreCase("0.0")) {
             requestLocationUpdate();
         } else {
@@ -203,7 +205,7 @@ public class BackgroundLocationUpdateService extends Service implements GoogleAp
                 .addOnSuccessListener(new OnSuccessListener<LocationSettingsResponse>() {
                     @Override
                     public void onSuccess(LocationSettingsResponse locationSettingsResponse) {
-                        Log.e(TAG_LOCATION, "GPS Success");
+                        Log.e(CommonConstants.TAG_LOCATION, "GPS Success");
                         requestLocationUpdate();
                     }
                 }).addOnFailureListener(new OnFailureListener() {
@@ -217,17 +219,17 @@ public class BackgroundLocationUpdateService extends Service implements GoogleAp
                             ResolvableApiException rae = (ResolvableApiException) e;
                             rae.startResolutionForResult((AppCompatActivity) context, REQUEST_CHECK_SETTINGS);
                         } catch (IntentSender.SendIntentException sie) {
-                            Log.e(TAG_LOCATION, "Unable to execute request.");
+                            Log.e(CommonConstants.TAG_LOCATION, "Unable to execute request.");
                         }
                         break;
                     case LocationSettingsStatusCodes.SETTINGS_CHANGE_UNAVAILABLE:
-                        Log.e(TAG_LOCATION, "Location settings are inadequate, and cannot be fixed here. Fix in Settings.");
+                        Log.e(CommonConstants.TAG_LOCATION, "Location settings are inadequate, and cannot be fixed here. Fix in Settings.");
                 }
             }
         }).addOnCanceledListener(new OnCanceledListener() {
             @Override
             public void onCanceled() {
-                Log.e(TAG_LOCATION, "checkLocationSettings -> onCanceled");
+                Log.e(CommonConstants.TAG_LOCATION, "checkLocationSettings -> onCanceled");
             }
         });
     }
@@ -258,7 +260,7 @@ public class BackgroundLocationUpdateService extends Service implements GoogleAp
             @Override
             public void onLocationResult(LocationResult locationResult) {
                 super.onLocationResult(locationResult);
-                Log.e(TAG_LOCATION, "Location Received");
+                Log.e(CommonConstants.TAG_LOCATION, "Location Received");
                 mCurrentLocation = locationResult.getLastLocation();
                 onLocationChanged(mCurrentLocation);
             }

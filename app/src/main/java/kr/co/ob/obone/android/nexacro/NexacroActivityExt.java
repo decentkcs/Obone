@@ -1,26 +1,26 @@
-package kr.co.ob.obone.android;
+package kr.co.ob.obone.android.nexacro;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
+import android.app.ProgressDialog;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.PowerManager;
 import android.provider.Settings;
 import android.util.Log;
-import android.widget.Toast;
 
 import com.google.android.gms.tasks.OnCompleteListener;
 import com.google.android.gms.tasks.Task;
@@ -37,10 +37,26 @@ import java.util.List;
 
 import androidx.annotation.NonNull;
 import android.app.AlertDialog;
+import android.widget.Button;
+import android.widget.CheckBox;
+import android.widget.TextView;
+import android.widget.Toast;
+
 import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.content.ContextCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+
+import device.common.DecodeResult;
+import device.common.DecodeStateCallback;
+import device.common.ScanConst;
+import device.sdk.ScanManager;
+import kr.co.ob.obone.android.MainActivity;
+import kr.co.ob.obone.android.R;
+import kr.co.ob.obone.android.log.TraceLog;
+import kr.co.ob.obone.android.common.CommonConstants;
+import kr.co.ob.obone.android.gps.GPSService;
+import kr.co.ob.obone.android.scan.ScanReceiver;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -63,7 +79,7 @@ public class NexacroActivityExt extends NexacroActivity {
 
     private StandardObject standardObj = null;
 
-    private Define.ApiInterface api;
+    private CommonConstants.ApiInterface api;
 
     private Intent mGpsService = null;
 
@@ -78,20 +94,25 @@ public class NexacroActivityExt extends NexacroActivity {
     // 전호번호 임시저장(권한 체크)
     private String mCallNum = "";
 
-    private static final int ZXING_CAMERA = 101;    //ZXING 카메라 권한요청 ID
+
+    private static ScanReceiver mScanResultReceiver = null;
+    private Context scanContext;
 
     @Override
     public void onCreate(Bundle savedInstanceState)
     {
         super.onCreate(savedInstanceState);
 
-        api = RetrofitClient.getInstance().create(Define.ApiInterface.class);
+        api = RetrofitClient.getInstance().create(CommonConstants.ApiInterface.class);
 
         LocalBroadcastManager.getInstance(this).registerReceiver( mMessageReceiver, new IntentFilter("custom-event-name"));
         context = this;
 
         this.pauseFlag = false;
         this.pushMsgFlag = false;
+
+        scanContext = this;
+        mScanResultReceiver = new ScanReceiver();
     }
 
     @Override
@@ -103,12 +124,23 @@ public class NexacroActivityExt extends NexacroActivity {
         }
         this.pauseFlag = false;
         super.onResume();
+
+
+
+//        mWaitDialog = ProgressDialog.show(scanContext, "", "Waiting", true);
+//        mHandler.postDelayed(mStartOnResume, 1000);
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(ScanConst.INTENT_USERMSG);
+        filter.addAction(ScanConst.INTENT_EVENT);
+        scanContext.registerReceiver(mScanResultReceiver, filter);
     }
 
     @Override
     public void onPause() {
         pauseFlag = true;
         super.onPause();
+
+        scanContext.unregisterReceiver(mScanResultReceiver);
     }
 
     @Override
@@ -127,6 +159,7 @@ public class NexacroActivityExt extends NexacroActivity {
         if(mMessageReceiver != null)
             LocalBroadcastManager.getInstance(this).unregisterReceiver(mMessageReceiver);
         super.onDestroy();
+
     }
 
 
@@ -162,7 +195,7 @@ public class NexacroActivityExt extends NexacroActivity {
                 }
 
                 if (!requestPermissions.isEmpty()) {    //요청해야할 권한이 있으면 권한요청
-                    ActivityCompat.requestPermissions( this, requestPermissions.toArray(new String[requestPermissions.size()]), Define.REQUEST_PERMISSION.CAMERA);
+                    ActivityCompat.requestPermissions( this, requestPermissions.toArray(new String[requestPermissions.size()]), CommonConstants.REQUEST_PERMISSION.CAMERA);
                 } else {                                //요청해야할 권한이 없으면 스캔시작
                     IntentIntegrator integrator = new IntentIntegrator(this);
                     integrator.setOrientationLocked(false);     //스캔 방향전환을 위한 설정
@@ -181,7 +214,7 @@ public class NexacroActivityExt extends NexacroActivity {
                         }
                         else {
                             String token = task.getResult();
-                            standardObj.send(standardObj.CODE_SUCCESS, token, standardObj.getActionString(StandardObject.ON_CALLBACK));
+                            standardObj.send(CommonConstants.CODE_SUCCESS, token, standardObj.getActionString(CommonConstants.ON_CALLBACK));
 
                         }
                     }
@@ -206,7 +239,7 @@ public class NexacroActivityExt extends NexacroActivity {
                     {
                         Intent intent  = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                         intent.setData(Uri.parse("package:"+ getPackageName()));
-                        startActivityForResult(intent, Define.REQUEST_PERMISSION.IGNORE_BATTERY);
+                        startActivityForResult(intent, CommonConstants.REQUEST_PERMISSION.IGNORE_BATTERY);
                     }
                 }
                 else
@@ -229,7 +262,7 @@ public class NexacroActivityExt extends NexacroActivity {
                 }
 
 
-                standardObj.send(standardObj.CODE_SUCCESS, "obone_gps_stop", standardObj.getActionString(StandardObject.ON_CALLBACK));
+                standardObj.send(CommonConstants.CODE_SUCCESS, "obone_gps_stop", standardObj.getActionString(CommonConstants.ON_CALLBACK));
 
             }
 
@@ -262,20 +295,23 @@ public class NexacroActivityExt extends NexacroActivity {
                         }
                         else {
                             String token = task.getResult();
-                            standardObj.send(standardObj.CODE_SUCCESS, token, standardObj.getActionString(StandardObject.ON_RESUME));
+                            standardObj.send(CommonConstants.CODE_SUCCESS, token, standardObj.getActionString(CommonConstants.ON_RESUME));
 
                         }
                     }
                 });
             }
             else if(mServiceId.equals("checkVersion")) {
-                standardObj.send(standardObj.CODE_SUCCESS, "2.0", standardObj.getActionString(StandardObject.ON_CALLBACK));
+                standardObj.send(CommonConstants.CODE_SUCCESS, "2.0", standardObj.getActionString(CommonConstants.ON_CALLBACK));
+            }
+            else if(mServiceId.equals("scan")) {
+                standardObj.sendScan(CommonConstants.CODE_SUCCESS, mParamData.getString("scanVal"), standardObj.getActionString(CommonConstants.ON_CALLBACK));
             }
 
 
         } catch(Exception e) {
             e.printStackTrace();
-            standardObj.send(standardObj.CODE_ERROR, standardObj.getActionString("callMethod") + ":" + e.getMessage(), standardObj.getActionString(StandardObject.ON_CALLBACK)
+            standardObj.send(CommonConstants.CODE_ERROR, standardObj.getActionString(CommonConstants.CALL_METHOD) + ":" + e.getMessage(), standardObj.getActionString(CommonConstants.ON_CALLBACK)
             );
         }
     }
@@ -304,7 +340,7 @@ public class NexacroActivityExt extends NexacroActivity {
         }
 
         if (!requestPermissions.isEmpty()) {    //요청해야할 권한이 있으면 권한요청
-            ActivityCompat.requestPermissions(this,requestPermissions.toArray(new String[requestPermissions.size()]), Define.REQUEST_PERMISSION.LOCATION_ONE);
+            ActivityCompat.requestPermissions(this,requestPermissions.toArray(new String[requestPermissions.size()]), CommonConstants.REQUEST_PERMISSION.LOCATION_ONE);
         } else {                                //요청해야할 권한이 없으면 스캔시작
             getLocation();
         }
@@ -332,11 +368,11 @@ public class NexacroActivityExt extends NexacroActivity {
                     e.printStackTrace();
                 }
 
-                standardObj.send(standardObj.CODE_SUCCESS, obj.toString(), standardObj.getActionString(StandardObject.ON_CALLBACK));
+                standardObj.send(CommonConstants.CODE_SUCCESS, obj.toString(), standardObj.getActionString(CommonConstants.ON_CALLBACK));
             }
             else
             {
-                standardObj.send(standardObj.CODE_ERROR, standardObj.getActionString("callMethod") + ":" + "loaction error", standardObj.getActionString(StandardObject.ON_CALLBACK));
+                standardObj.send(CommonConstants.CODE_ERROR, standardObj.getActionString(CommonConstants.CALL_METHOD) + ":" + "loaction error", standardObj.getActionString(CommonConstants.ON_CALLBACK));
             }
         });
     }
@@ -368,7 +404,7 @@ public class NexacroActivityExt extends NexacroActivity {
         }
 
         if (!requestPermissions.isEmpty()) {    //요청해야할 권한이 있으면 권한요청
-            ActivityCompat.requestPermissions(this, requestPermissions.toArray(new String[requestPermissions.size()]), Define.REQUEST_PERMISSION.LOCATION);
+            ActivityCompat.requestPermissions(this, requestPermissions.toArray(new String[requestPermissions.size()]), CommonConstants.REQUEST_PERMISSION.LOCATION);
         } else {                                //요청해야할 권한이 없으면 스캔시작
 
             mGpsService = new Intent(this, GPSService.class);
@@ -395,7 +431,7 @@ public class NexacroActivityExt extends NexacroActivity {
         }
 
         if (!requestPermissions.isEmpty()) {    //요청해야할 권한이 있으면 권한요청
-            ActivityCompat.requestPermissions( this, requestPermissions.toArray(new String[requestPermissions.size()]), Define.REQUEST_PERMISSION.CALL_PHONE);
+            ActivityCompat.requestPermissions( this, requestPermissions.toArray(new String[requestPermissions.size()]), CommonConstants.REQUEST_PERMISSION.CALL_PHONE);
         } else {                                //요청해야할 권한이 없으면 스캔시작
 
             Intent intent = new Intent(Intent.ACTION_CALL, Uri.parse(tel));
@@ -421,7 +457,7 @@ public class NexacroActivityExt extends NexacroActivity {
     public void requestPermissionsResult(int requestCode, String[] permissions, int[] grantResults)
     {
         switch(requestCode) {
-            case Define.REQUEST_PERMISSION.CAMERA: {
+            case CommonConstants.REQUEST_PERMISSION.CAMERA: {
                 //필요권한(CAMERA) 이 승인되었는지 체크
                 boolean isPermissionGranted = true;
                 for(int i = 0; i < permissions.length; i++) {
@@ -434,11 +470,11 @@ public class NexacroActivityExt extends NexacroActivity {
                     integrator.setOrientationLocked(false);     //스캔 방향전환을 위한 설정
                     integrator.initiateScan();
                 } else {                    //권한거절시 화면으로 리턴
-                    standardObj.send(standardObj.CODE_PERMISSION_ERROR, "Camera permission denied" , standardObj.getActionString("_onpermissionresult"));
+                    standardObj.send(CommonConstants.CODE_PERMISSION_ERROR, "Camera permission denied" , standardObj.getActionString("_onpermissionresult"));
                 }
                 break;
             }
-            case Define.REQUEST_PERMISSION.LOCATION: {
+            case CommonConstants.REQUEST_PERMISSION.LOCATION: {
 
                 boolean isPermissionGranted = true;
                 for(int i = 0; i < permissions.length; i++) {
@@ -454,7 +490,7 @@ public class NexacroActivityExt extends NexacroActivity {
                     startService(mGpsService);
                 } else {                    //권한거절시 화면으로 리턴
 
-                    if(Define.IS_TEST) {
+                    if(CommonConstants.IS_TEST) {
 
                         AlertDialog.Builder builder = new AlertDialog.Builder(NexacroActivityExt.this);
                         builder.setMessage("OB-1 앱은 이 기기의 위치에 항상 허용 해야 이용할수 있습니다.");
@@ -479,12 +515,12 @@ public class NexacroActivityExt extends NexacroActivity {
 
                     }
                     else
-                        standardObj.send(standardObj.CODE_PERMISSION_ERROR, "Location permission denied" , standardObj.getActionString("_onpermissionresult"));
+                        standardObj.send(CommonConstants.CODE_PERMISSION_ERROR, "Location permission denied" , standardObj.getActionString("_onpermissionresult"));
                 }
                 break;
             }
 
-            case Define.REQUEST_PERMISSION.LOCATION_ONE : {
+            case CommonConstants.REQUEST_PERMISSION.LOCATION_ONE : {
 
                 boolean isPermissionGranted = true;
                 for(int i = 0; i < permissions.length; i++) {
@@ -496,12 +532,12 @@ public class NexacroActivityExt extends NexacroActivity {
                     getLocation();
                 }
                 else {
-                    standardObj.send(standardObj.CODE_PERMISSION_ERROR, "Location permission denied" , standardObj.getActionString("_onpermissionresult"));
+                    standardObj.send(CommonConstants.CODE_PERMISSION_ERROR, "Location permission denied" , standardObj.getActionString("_onpermissionresult"));
                 }
                 break;
             }
 
-            case Define.REQUEST_PERMISSION.CALL_PHONE : {
+            case CommonConstants.REQUEST_PERMISSION.CALL_PHONE : {
 
                 boolean isPermissionGranted = true;
                 for(int i = 0; i < permissions.length; i++) {
@@ -514,7 +550,7 @@ public class NexacroActivityExt extends NexacroActivity {
                     mCallNum = "";
                 }
                 else {
-                    standardObj.send(standardObj.CODE_PERMISSION_ERROR, "CALL permission denied" , standardObj.getActionString("_onpermissionresult"));
+                    standardObj.send(CommonConstants.CODE_PERMISSION_ERROR, "CALL permission denied" , standardObj.getActionString("_onpermissionresult"));
                 }
                 break;
             }
@@ -524,7 +560,7 @@ public class NexacroActivityExt extends NexacroActivity {
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent intent)
     {
-        if(requestCode == Define.REQUEST_PERMISSION.IGNORE_BATTERY) {
+        if(requestCode == CommonConstants.REQUEST_PERMISSION.IGNORE_BATTERY) {
 
             // 배터리 최적화 예외
             if(resultCode == RESULT_OK) {
@@ -534,7 +570,7 @@ public class NexacroActivityExt extends NexacroActivity {
             }
             else {
 
-                if(Define.IS_TEST) {
+                if(CommonConstants.IS_TEST) {
 
                     AlertDialog.Builder builder = new AlertDialog.Builder(NexacroActivityExt.this);
                     builder.setMessage("OB-1 앱은 배터리 최적화 제외 허용을 해야 이용할수 있습니다.");
@@ -544,7 +580,7 @@ public class NexacroActivityExt extends NexacroActivity {
 
                             Intent intent  = new Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS);
                             intent.setData(Uri.parse("package:"+ getPackageName()));
-                            startActivityForResult(intent, Define.REQUEST_PERMISSION.IGNORE_BATTERY);
+                            startActivityForResult(intent, CommonConstants.REQUEST_PERMISSION.IGNORE_BATTERY);
                         }
                     });
                     builder.setNegativeButton("앱 종료", new DialogInterface.OnClickListener() {
@@ -560,7 +596,7 @@ public class NexacroActivityExt extends NexacroActivity {
 
                 }
 
-                standardObj.send(standardObj.CODE_PERMISSION_ERROR, "Location permission denied", standardObj.getActionString("_onpermissionresult"));
+                standardObj.send(CommonConstants.CODE_PERMISSION_ERROR, "Location permission denied", standardObj.getActionString("_onpermissionresult"));
             }
             return;
         }
@@ -572,10 +608,10 @@ public class NexacroActivityExt extends NexacroActivity {
             if (result != null) {
                 if (result.getContents() == null) { //스캔 취소시
                     Log.d(LOG_TAG, "Canceled scan");
-                    standardObj.send(standardObj.CODE_ERROR, "User Canceled", standardObj.getActionString(StandardObject.ON_CALLBACK));
+                    standardObj.send(CommonConstants.CODE_ERROR, "User Canceled", standardObj.getActionString(CommonConstants.ON_CALLBACK));
                 } else {                        //스캔 완료시
                     Log.d(LOG_TAG, "Scanned");
-                    standardObj.send(standardObj.CODE_SUCCESS, result.getContents(), standardObj.getActionString(StandardObject.ON_CALLBACK));
+                    standardObj.send(CommonConstants.CODE_SUCCESS, result.getContents(), standardObj.getActionString(CommonConstants.ON_CALLBACK));
                 }
             } else {
                 super.onActivityResult(requestCode, resultCode, intent);
@@ -723,6 +759,5 @@ public class NexacroActivityExt extends NexacroActivity {
         notificationManager.notify(notiId, builder.build()); // 고유숫자로 노티피케이션 동작시킴
 
     }
-
 }
 

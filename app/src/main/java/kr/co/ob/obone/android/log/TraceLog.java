@@ -1,4 +1,4 @@
-package kr.co.ob.obone.android;
+package kr.co.ob.obone.android.log;
 
 import java.io.*;
 import java.text.DateFormat;
