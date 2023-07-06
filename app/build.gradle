@@ -74,8 +74,8 @@ android {
 //                    appLabel: "OB-1 Local1",
             ]
 //            buildConfigField "String", "SERVER", "\"https://ob-1test.ob.co.kr\""
-            buildConfigField "String", "SERVER", "\"http://118.129.180.194:48080\""
-//            buildConfigField "String", "SERVER", "\"http://192.168.68.13:8080\""
+//            buildConfigField "String", "SERVER", "\"http://118.129.180.194:48080\""
+            buildConfigField "String", "SERVER", "\"http://10.39.140.116:8080\""
         }
         real {
             dimension "mode"

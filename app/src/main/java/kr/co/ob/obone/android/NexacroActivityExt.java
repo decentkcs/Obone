@@ -305,9 +305,10 @@ public class NexacroActivityExt extends NexacroActivity {
 
         if (!requestPermissions.isEmpty()) {    //요청해야할 권한이 있으면 권한요청
             ActivityCompat.requestPermissions(this,requestPermissions.toArray(new String[requestPermissions.size()]), Define.REQUEST_PERMISSION.LOCATION_ONE);
-        } else {                                //요청해야할 권한이 없으면 스캔시작
-            getLocation();
         }
+
+        getLocation();
+
     }
 
 
